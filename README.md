@@ -1,232 +1,134 @@
-# AI Agent Project with Google ADK, A2A Protocol and MCP Integration
+# 🌤️ MCP Weather Server
 
-Этот проект представляет собой реализацию AI агента с интеграцией Google ADK (Agent Development Kit), поддерживающего A2A (Agent-to-Agent) протокол для взаимодействия с другими агентами и расширяемого через MCP (Model Context Protocol) серверы. Проект включает в себя готовую инфраструктуру для разработки, тестирования и развертывания AI агентов с мониторингом и трейсингом.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![FastMCP](https://img.shields.io/badge/FastMCP-2.0-green.svg)](https://github.com/jlowin/fastmcp)
+[![Free API](https://img.shields.io/badge/API-Free-brightgreen.svg)](https://open-meteo.com/)
 
-Подробная документация по A2A протоколу: [документация](./documentation-a2a-russian.md) и [Postman-коллекция](./postman-collection-a2a-spec.json)
+MCP сервер для получения данных о погоде с использованием Open-Meteo API. **Полностью бесплатно без API ключей!** 🎉
 
-## 🎯 Особенности
+## 🚀 Возможности
 
-- **Google ADK Integration** - Использование передового SDK для разработки агентов
-- **MCP Tools Support** - Интеграция с Model Context Protocol для расширяемых инструментов
-- **LiteLLM** - Поддержка различных LLM моделей через единый интерфейс
-- **Phoenix Monitoring** - Опциональный мониторинг и трейсинг выполнения
-- **Docker Ready** - Полная контейнеризация с автоматической настройкой
-- **A2A Protocol** - Agent-to-Agent коммуникация
-- **Flexible Configuration** - Настройка через переменные окружения
+- **🌍 Погода сегодня** - актуальная погода для любого города мира
+- **📅 Прогноз на неделю** - детальный недельный прогноз
+- **🔄 Реальные данные** - Open-Meteo API без необходимости API ключей
+- **🌐 Мультиязычность** - поддержка городов с любыми названиями
+- **⚡ Быстро и надежно** - FastMCP 2.0 фреймворк
 
-## 📁 Структура проекта
-
-```
-a2a-adk-mcp-example/
-├── agent/                  # Директория агента
-│   ├── app/                # Основной код приложения
-│   │   ├── __main__.py     # Точка входа с Click CLI
-│   │   ├── agent.py        # Класс AgentEvolution
-│   │   └── agent_executor.py  # Исполнитель агента
-│   ├── .env.example        # Пример файла конфигурации
-│   ├── pyproject.toml      # Конфигурация проекта и зависимости
-│   └── README.md           # Документация агента
-├── mcp-weather/            # MCP сервер погоды
-│   ├── server.py           # Основной сервер
-│   ├── Dockerfile          # Docker конфигурация
-│   └── README.md           # Документация MCP сервера
-├── nginx/                  # Nginx конфигурация
-├── docker-compose.phoenix.yml  # Конфигурация с Phoenix
-├── docker-compose.yml      # Основная конфигурация Docker Compose
-├── Makefile                # Автоматизация команд
-└── .gitignore              # Игнорируемые файлы
-```
-
-## 🛠 Установка и быстрый старт
-
-### Быстрый старт с Docker (рекомендуется)
+## 📦 Установка
 
 ```bash
-# Сборка образов
-make build
+# Клонируйте репозиторий
+cd mcp-weather
 
-# Запуск основных сервисов
-make up
+# Установите зависимости
+uv sync
 
-# Агент будет доступен на http://localhost:10002
-# MCP сервер будет доступен на http://localhost:8001
+# Запустите сервер
+uv run python server.py
 ```
 
-### Использование Makefile
+## 🛠️ Доступные инструменты
+
+### `get_today_weather(city: str)`
+Получает актуальную погоду на сегодня для указанного города.
+
+```python
+# Примеры использования
+await get_today_weather("Москва")
+await get_today_weather("Paris") 
+await get_today_weather("New York")
+await get_today_weather("東京")
+```
+
+### `get_weekly_forecast(city: str)`
+Получает прогноз погоды на неделю для указанного города.
+
+```python
+# Примеры использования
+await get_weekly_forecast("Лондон")
+await get_weekly_forecast("Berlin")
+await get_weekly_forecast("São Paulo")
+```
+
+## 🧪 Тестирование
+
+Проект включает полный набор тестов:
 
 ```bash
-# Просмотр всех доступных команд
-make help
+# Все тесты
+make test-all
 
-# Запуск основных сервисов
-make up
+# Unit тесты (быстрые, с моками)
+make test-unit
 
-# Запуск с Phoenix мониторингом
-make phoenix
+# Интеграционные тесты (с реальным API)
+make test-integration
 
-# Режим разработки
-make dev
+# Демонстрационные тесты
+make test-demo
 
-# Просмотр логов
-make logs
-
-# Остановка всех сервисов
-make down
+# Тесты с покрытием кода
+make test-cov
 ```
 
-## ⚙️ Конфигурация
-
-### Создание файла окружения
+## 🐳 Docker
 
 ```bash
-# Создание .env файла из примера
-make env
+# Сборка и запуск
+docker-compose up --build
 
-# Или вручную
-cp agent/.env.example .env
+# Только сборка
+docker build -t mcp-weather .
+
+# Запуск контейнера
+docker run -p 8001:8001 mcp-weather
 ```
 
-### Основные переменные окружения
-
-В файле `.env` можно настроить следующие параметры:
-
-```bash
-# Основные настройки агента
-AGENT_NAME=jira_mcp_agent
-AGENT_DESCRIPTION="Jira MCP агент для управления проектами, задачами, спринтами и agile-процессами"
-AGENT_VERSION=1.0.0
-
-# Конфигурация модели
-LLM_MODEL="evolution_inference/model-for-agent-space-test"
-LLM_API_BASE="https://your-model-api-base-url/v1"
-
-# MCP Configuration
-MCP_URL=http://mcp-weather:8001/sse
-
-# Phoenix мониторинг (опционально)
-PHOENIX_PROJECT_NAME="ip_agent_adk"
-PHOENIX_ENDPOINT="http://phoenix:6006/v1/traces"
-
-# Серверные настройки
-HOST="0.0.0.0"
-PORT="10002"
-
-# Мониторинг
-ENABLE_PHOENIX="false"
-ENABLE_MONITORING="true"
-```
-
-## 🚀 Использование
-
-### Запуск агента
-
-```bash
-# Запуск основных сервисов
-make up
-
-# Агент будет доступен на http://localhost:10002
-```
-
-### Режим разработки
-
-```bash
-# Запуск в режиме разработки с live reload
-make dev
-
-# Запуск с Phoenix мониторингом для отладки
-make dev-phoenix
-```
-
-### Проверка состояния
-
-```bash
-# Статус всех сервисов
-make status
-
-# Проверка здоровья
-make health
-
-# Просмотр логов
-make logs
-```
-
-## 🧩 Компоненты проекта
-
-### Агент (agent/)
-
-Основной компонент проекта - AI агент на базе Google ADK с поддержкой MCP инструментов. Агент реализует A2A Protocol для взаимодействия с другими агентами.
-
-#### API Endpoints
-
-- `GET /` - Информация об агенте (Agent Card)
-- `POST /tasks` - Создание новой задачи
-- `GET /tasks/{task_id}` - Получение статуса задачи
-- `GET /tasks/{task_id}/stream` - SSE поток выполнения задачи
-
-### MCP Сервер погоды (mcp-weather/)
-
-Сервер предоставляет инструменты для получения данных о погоде через MCP протокол. Использует бесплатное Open-Meteo API.
-
-#### Инструменты
-
-- `get_today_weather(city: str)` - Получает актуальную погоду на сегодня для указанного города
-- `get_weekly_forecast(city: str)` - Получает прогноз погоды на неделю для указанного города
-
-#### Endpoints
+## 🌐 Endpoints
 
 - **SSE**: `http://localhost:8001/sse`
 - **Messages**: `http://localhost:8001/messages/`
 
-## 📊 Мониторинг
+## 📊 Покрытие тестами
 
-### Phoenix Tracing
+- **Unit тесты**: 17 тестов
+- **Интеграционные тесты**: 7 тестов  
+- **Демо тесты**: 6 функций
+- **Общее покрытие**: 87%
 
-Для включения Phoenix мониторинга установите переменную окружения:
+## 🏗️ Архитектура
 
-```bash
-ENABLE_PHOENIX=true
-```
-
-Запустите с Phoenix:
-
-```bash
-make phoenix
-```
-
-Phoenix Dashboard будет доступен на http://localhost:6006
-
-## 🐳 Docker команды
-
-```bash
-# Основные команды
-make build          # Сборка образов
-make up            # Запуск сервисов
-make down          # Остановка сервисов
-make restart       # Перезапуск
-make logs          # Просмотр логов
-
-# Phoenix мониторинг
-make phoenix       # Запуск с мониторингом
-make phoenix-down  # Остановка Phoenix
-
-# Утилиты
-make shell         # Вход в контейнер агента
-make clean         # Очистка Docker ресурсов
-```
-
-## 📋 Требования
-
-- **Docker**: Для контейнеризации
-- **Make**: Для автоматизации команд
-- **MCP Server**: Для инструментов (опционально)
+- **FastMCP 2.0** - MCP фреймворк
+- **httpx** - HTTP клиент
+- **Open-Meteo API** - данные о погоде
+- **pytest** - тестирование
+- **uv** - управление зависимостями
 
 ## 📄 Лицензия
 
-Этот проект распространяется под лицензией MIT. См. файл `LICENSE` для подробностей (если имеется).
+Этот проект лицензирован под MIT License - см. файл [LICENSE](LICENSE) для деталей.
 
-## 🔗 Полезные ссылки
+## 🤝 Вклад в проект
 
-- [Google ADK Documentation](https://developers.google.com/adk)
-- [Model Context Protocol](https://modelcontextprotocol.io/)
-- [LiteLLM Documentation](https://docs.litellm.ai/)
-- [Phoenix Tracing](https://phoenix.arize.com/)
+Мы приветствуем любые улучшения! 
+
+1. **Fork** проект
+2. Создайте **feature branch** (`git checkout -b feature/AmazingFeature`)
+3. **Commit** изменения (`git commit -m 'Add some AmazingFeature'`)
+4. **Push** в branch (`git push origin feature/AmazingFeature`)
+5. Откройте **Pull Request**
+
+## 🆘 Поддержка
+
+- 📫 **Issues**: [GitHub Issues](https://github.com/your-username/simple_mcp_server/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/your-username/simple_mcp_server/discussions)
+
+## 🎉 Благодарности
+
+- [FastMCP](https://github.com/jlowin/fastmcp) - отличный MCP фреймворк
+- [Open-Meteo](https://open-meteo.com/) - бесплатное API погоды
+
+---
+
+⭐ **Понравился проект? Поставьте звездочку!** ⭐ 

@@ -1,198 +1,118 @@
-# AI Agent Template Makefile
-# Команды для управления Docker Compose конфигурациями
+# Makefile для MCP сервера погоды
+# Используется uv для управления зависимостями и запуска тестов
 
-.PHONY: help build up down restart logs clean test dev phoenix phoenix-up phoenix-down agent-up agent-down network
+.PHONY: help install test test-unit test-integration test-demo test-all test-cov \
+        clean lint format server run-server docker-build docker-run
 
 # Цвета для вывода
-GREEN := \033[32m
-YELLOW := \033[33m
-RED := \033[31m
-BLUE := \033[34m
-RESET := \033[0m
+GREEN := \033[0;32m
+YELLOW := \033[1;33m
+RED := \033[0;31m
+NC := \033[0m # No Color
 
-# Переменные
-COMPOSE_FILE := docker-compose.yml
-PHOENIX_COMPOSE_FILE := docker-compose.phoenix.yml
-PROJECT_NAME := ai-agent-template
-NETWORK_NAME := agent-network
-
-# Помощь
-help: ## Показать это сообщение помощи
-	@echo "$(GREEN)AI Agent Template - Makefile команды$(RESET)"
+help: ## Показать справку
+	@echo "$(GREEN)MCP Weather Server - Makefile команды:$(NC)"
 	@echo ""
-	@echo "$(BLUE)Основные команды:$(RESET)"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  $(GREEN)%-15s$(RESET) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-20s$(NC) %s\n", $$1, $$2}'
 	@echo ""
-	@echo "$(YELLOW)Примеры использования:$(RESET)"
-	@echo "  make up          # Запустить основные сервисы"
-	@echo "  make phoenix     # Запустить с Phoenix мониторингом"
-	@echo "  make dev         # Режим разработки"
-	@echo "  make logs        # Посмотреть логи"
-	@echo "  make clean       # Очистить все"
 
-# Создание сети Docker
-network: ## Создать Docker сеть
-	@echo "$(BLUE)Создание Docker сети...$(RESET)"
-	@docker network create $(NETWORK_NAME) 2>/dev/null || echo "$(YELLOW)Сеть $(NETWORK_NAME) уже существует$(RESET)"
+install: ## Установить зависимости через uv
+	@echo "$(GREEN)Установка зависимостей...$(NC)"
+	uv sync --dev
 
-# Основные команды
-build: network ## Собрать Docker образы
-	@echo "$(BLUE)Сборка Docker образов...$(RESET)"
-	@docker-compose -f $(COMPOSE_FILE) build
+test: test-unit ## Запустить основные тесты (alias для test-unit)
 
-up: network ## Запустить основные сервисы
-	@echo "$(GREEN)Запуск основных сервисов...$(RESET)"
-	@docker-compose -f $(COMPOSE_FILE) up -d
-	@echo "$(GREEN)✅ Сервисы запущены!$(RESET)"
-	@echo "$(YELLOW)Агент доступен на: http://localhost:10002$(RESET)"
+test-unit: ## Запустить быстрые unit тесты с mock
+	@echo "$(GREEN)Запуск unit тестов...$(NC)"
+	uv run pytest test/test_weather_api.py -v --tb=short
 
-down: ## Остановить все сервисы
-	@echo "$(RED)Остановка сервисов...$(RESET)"
-	@docker-compose -f $(COMPOSE_FILE) down 2>/dev/null || true
-	@docker-compose -f $(PHOENIX_COMPOSE_FILE) down 2>/dev/null || true
-	@echo "$(GREEN)✅ Сервисы остановлены$(RESET)"
+test-integration: ## Запустить интеграционные тесты с реальным API
+	@echo "$(YELLOW)Запуск интеграционных тестов (требует интернет)...$(NC)"
+	uv run pytest test/test_integration.py -v --tb=short -m integration
 
-restart: down up ## Перезапустить сервисы
+test-demo: ## Запустить демонстрационные тесты
+	@echo "$(GREEN)Запуск демонстрационных тестов...$(NC)"
+	cd test && uv run python test_tools.py
 
-# Phoenix мониторинг
-phoenix: phoenix-up ## Запустить с Phoenix мониторингом (алиас)
+test-all: ## Запустить все тесты
+	@echo "$(GREEN)Запуск всех тестов...$(NC)"
+	uv run pytest test/ -v --tb=short
 
-phoenix-up: network ## Запустить сервисы с Phoenix мониторингом
-	@echo "$(GREEN)Запуск сервисов с Phoenix мониторингом...$(RESET)"
-	@docker-compose -f $(PHOENIX_COMPOSE_FILE) up -d
-	@echo "$(GREEN)✅ Сервисы с Phoenix запущены!$(RESET)"
-	@echo "$(YELLOW)Агент доступен на: http://localhost:10002$(RESET)"
-	@echo "$(YELLOW)Phoenix Dashboard: http://localhost:6006$(RESET)"
+test-cov: ## Запустить тесты с покрытием кода
+	@echo "$(GREEN)Запуск тестов с покрытием кода...$(NC)"
+	uv run pytest test/ -v --cov=server --cov-report=term-missing --cov-report=html
 
-phoenix-down: ## Остановить Phoenix сервисы
-	@echo "$(RED)Остановка Phoenix сервисов...$(RESET)"
-	@docker-compose -f $(PHOENIX_COMPOSE_FILE) down
-	@echo "$(GREEN)✅ Phoenix сервисы остановлены$(RESET)"
+test-fast: ## Запустить только быстрые тесты (исключить медленные)
+	@echo "$(GREEN)Запуск быстрых тестов...$(NC)"
+	uv run pytest test/ -v -m "not slow"
 
-phoenix-restart: phoenix-down phoenix-up ## Перезапустить Phoenix сервисы
+test-ci: ## Запустить тесты для CI/CD (только unit тесты)
+	@echo "$(GREEN)Запуск тестов для CI...$(NC)"
+	uv run pytest test/test_weather_api.py -v --tb=short --junitxml=test-results.xml
 
-# Отдельный запуск агента
-agent-up: network ## Запустить только агент
-	@echo "$(GREEN)Запуск агента...$(RESET)"
-	@docker-compose -f $(COMPOSE_FILE) up -d evolution-agent
-	@echo "$(GREEN)✅ Агент запущен на http://localhost:10002$(RESET)"
+lint: ## Проверить код линтером
+	@echo "$(GREEN)Проверка кода линтером...$(NC)"
+	uv run ruff check server.py test/
 
-agent-down: ## Остановить только агент
-	@echo "$(RED)Остановка агента...$(RESET)"
-	@docker-compose -f $(COMPOSE_FILE) stop evolution-agent
-	@echo "$(GREEN)✅ Агент остановлен$(RESET)"
+format: ## Форматировать код
+	@echo "$(GREEN)Форматирование кода...$(NC)"
+	uv run ruff format server.py test/
 
-# Логи и мониторинг
-logs: ## Показать логи всех сервисов
-	@echo "$(BLUE)Логи сервисов:$(RESET)"
-	@docker-compose -f $(COMPOSE_FILE) logs -f --tail=100
+server: run-server ## Запустить сервер (alias)
 
-logs-agent: ## Показать логи только агента
-	@echo "$(BLUE)Логи агента:$(RESET)"
-	@docker-compose -f $(COMPOSE_FILE) logs -f --tail=100 evolution-agent
+run-server: ## Запустить MCP сервер локально
+	@echo "$(GREEN)Запуск MCP сервера погоды...$(NC)"
+	uv run python server.py
 
-logs-phoenix: ## Показать логи Phoenix сервисов
-	@echo "$(BLUE)Логи Phoenix:$(RESET)"
-	@docker-compose -f $(PHOENIX_COMPOSE_FILE) logs -f --tail=100
+dev-server: ## Запустить сервер в режиме разработки
+	@echo "$(GREEN)Запуск сервера в dev режиме...$(NC)"
+	uv run python server.py --reload
 
-status: ## Показать статус сервисов
-	@echo "$(BLUE)Статус основных сервисов:$(RESET)"
-	@docker-compose -f $(COMPOSE_FILE) ps
-	@echo ""
-	@echo "$(BLUE)Статус Phoenix сервисов:$(RESET)"
-	@docker-compose -f $(PHOENIX_COMPOSE_FILE) ps 2>/dev/null || echo "$(YELLOW)Phoenix сервисы не запущены$(RESET)"
+docker-build: ## Собрать Docker образ
+	@echo "$(GREEN)Сборка Docker образа...$(NC)"
+	docker build -t weather-mcp-server .
 
-# Разработка
-dev: network ## Режим разработки (с автоперезагрузкой)
-	@echo "$(GREEN)Запуск в режиме разработки...$(RESET)"
-	@docker-compose -f $(COMPOSE_FILE) up --build
-	@echo "$(YELLOW)Для выхода нажмите Ctrl+C$(RESET)"
+docker-run: ## Запустить сервер в Docker
+	@echo "$(GREEN)Запуск сервера в Docker...$(NC)"
+	docker run -p 8001:8001 weather-mcp-server
 
-dev-phoenix: network ## Режим разработки с Phoenix
-	@echo "$(GREEN)Запуск в режиме разработки с Phoenix...$(RESET)"
-	@docker-compose -f $(PHOENIX_COMPOSE_FILE) up --build
-	@echo "$(YELLOW)Phoenix Dashboard: http://localhost:6006$(RESET)"
-	@echo "$(YELLOW)Для выхода нажмите Ctrl+C$(RESET)"
+clean: ## Очистить временные файлы
+	@echo "$(GREEN)Очистка временных файлов...$(NC)"
+	rm -rf __pycache__ test/__pycache__ .pytest_cache htmlcov .coverage
+	rm -f test-results.xml
+	find . -name "*.pyc" -delete
+	find . -name "*.pyo" -delete
 
-# Тестирование
-test: ## Запустить тесты
-	@echo "$(BLUE)Запуск тестов...$(RESET)"
-	@docker run --rm -v $(PWD):/app -w /app python:3.12 bash -c "\
-		pip install -r requirements.txt && \
-		python -m pytest tests/ -v"
+deps-update: ## Обновить зависимости
+	@echo "$(GREEN)Обновление зависимостей...$(NC)"
+	uv sync --upgrade
 
-test-mcp: phoenix-up ## Тестировать MCP трейсинг
-	@echo "$(BLUE)Тестирование MCP трейсинга...$(RESET)"
-	@sleep 5  # Ждем запуска сервисов
-	@python test_mcp_tracing.py
-	@echo "$(YELLOW)Проверьте Phoenix Dashboard: http://localhost:6006$(RESET)"
-
-# Очистка
-clean: down ## Очистить контейнеры и образы
-	@echo "$(RED)Очистка Docker ресурсов...$(RESET)"
-	@docker-compose -f $(COMPOSE_FILE) down --rmi all --volumes --remove-orphans 2>/dev/null || true
-	@docker-compose -f $(PHOENIX_COMPOSE_FILE) down --rmi all --volumes --remove-orphans 2>/dev/null || true
-	@echo "$(GREEN)✅ Очистка завершена$(RESET)"
-
-clean-volumes: ## Удалить все volumes
-	@echo "$(RED)Удаление volumes...$(RESET)"
-	@docker volume prune -f
-	@echo "$(GREEN)✅ Volumes удалены$(RESET)"
-
-clean-all: clean clean-volumes ## Полная очистка
-	@echo "$(RED)Полная очистка Docker системы...$(RESET)"
-	@docker system prune -af
-	@echo "$(GREEN)✅ Полная очистка завершена$(RESET)"
-
-# Утилиты
-shell: ## Войти в shell контейнера агента
-	@echo "$(BLUE)Вход в shell агента...$(RESET)"
-	@docker-compose -f $(COMPOSE_FILE) exec evolution-agent /bin/bash
-
-shell-phoenix: ## Войти в shell Phoenix контейнера
-	@echo "$(BLUE)Вход в shell Phoenix...$(RESET)"
-	@docker-compose -f $(PHOENIX_COMPOSE_FILE) exec phoenix /bin/bash
-
-install: ## Установить зависимости локально
-	@echo "$(BLUE)Установка зависимостей...$(RESET)"
-	@pip install -r requirements.txt
-	@echo "$(GREEN)✅ Зависимости установлены$(RESET)"
-
-env: ## Создать файл окружения из примера
-	@echo "$(BLUE)Создание .env файла...$(RESET)"
-	@if [ ! -f .env ]; then \
-		cp .env.example .env; \
-		echo "$(GREEN)✅ .env файл создан из .env.example$(RESET)"; \
-		echo "$(YELLOW)⚠️  Отредактируйте .env файл с вашими настройками$(RESET)"; \
-	else \
-		echo "$(YELLOW)⚠️  .env файл уже существует$(RESET)"; \
+deps-add: ## Добавить новую зависимость (использование: make deps-add PACKAGE=название_пакета)
+	@if [ -z "$(PACKAGE)" ]; then \
+		echo "$(RED)Ошибка: укажите PACKAGE=название_пакета$(NC)"; \
+		exit 1; \
 	fi
+	@echo "$(GREEN)Добавление зависимости $(PACKAGE)...$(NC)"
+	uv add $(PACKAGE)
 
-# Информация
-info: ## Показать информацию о проекте
-	@echo "$(GREEN)🤖 AI Agent Template$(RESET)"
-	@echo "$(BLUE)════════════════════════════════════════$(RESET)"
-	@echo "$(YELLOW)Проект:$(RESET) AI Agent с Phoenix мониторингом"
-	@echo "$(YELLOW)Версия:$(RESET) 0.1.0"
-	@echo "$(YELLOW)Основные порты:$(RESET)"
-	@echo "  • Агент: http://localhost:10002"
-	@echo "  • Phoenix: http://localhost:6006"
-	@echo "$(YELLOW)Docker Compose файлы:$(RESET)"
-	@echo "  • $(COMPOSE_FILE) - основные сервисы"
-	@echo "  • $(PHOENIX_COMPOSE_FILE) - с Phoenix мониторингом"
-	@echo "$(BLUE)════════════════════════════════════════$(RESET)"
+deps-add-dev: ## Добавить dev зависимость (использование: make deps-add-dev PACKAGE=название_пакета)
+	@if [ -z "$(PACKAGE)" ]; then \
+		echo "$(RED)Ошибка: укажите PACKAGE=название_пакета$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Добавление dev зависимости $(PACKAGE)...$(NC)"
+	uv add --dev $(PACKAGE)
 
-# Проверка здоровья
-health: ## Проверить здоровье сервисов
-	@echo "$(BLUE)Проверка здоровья сервисов...$(RESET)"
-	@echo "$(YELLOW)Агент:$(RESET)"
-	@curl -s http://localhost:10002/health 2>/dev/null || echo "$(RED)❌ Агент недоступен$(RESET)"
-	@echo "$(YELLOW)Phoenix:$(RESET)"
-	@curl -s http://localhost:6006/health 2>/dev/null || echo "$(RED)❌ Phoenix недоступен$(RESET)"
+check: lint test-unit ## Полная проверка кода (линтер + unit тесты)
 
-# Резервное копирование
-backup: ## Создать резервную копию данных
-	@echo "$(BLUE)Создание резервной копии...$(RESET)"
-	@mkdir -p backups
-	@docker run --rm -v $(PROJECT_NAME)_phoenix_data:/data -v $(PWD)/backups:/backup alpine tar czf /backup/phoenix_data_$(shell date +%Y%m%d_%H%M%S).tar.gz -C /data .
-	@echo "$(GREEN)✅ Резервная копия создана в папке backups/$(RESET)" 
+all: clean install lint test-cov ## Полный цикл: очистка, установка, линтер, тесты с покрытием
+
+# Примеры использования в комментариях:
+# make install          # Установить зависимости
+# make test            # Быстрые тесты
+# make test-all        # Все тесты
+# make test-cov        # Тесты + покрытие
+# make run-server      # Запустить сервер
+# make docker-build    # Собрать Docker образ
+# make clean           # Очистить временные файлы 
